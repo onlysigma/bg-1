@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced BG Remover</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+       .checker-bg {
+    background-image: 
+        linear-gradient(45deg, #eee 25%, transparent 25%),
+        linear-gradient(-45deg, #eee 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #eee 75%),
+        linear-gradient(-45deg, transparent 75%, #eee 75%);
+    background-size: 20px 20px;
+}
+        #preview-container, #result-container {
+            min-height: 300px;
+        }
+        .color-btn {
+            transition: all 0.2s;
+        }
+        .color-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="max-w-3xl mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">Background Remover</h1>
+        
+        <!-- Upload Section -->
+        <div id="upload-section" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2 font-medium">Upload Image</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <input type="file" id="file-input" class="hidden" accept="image/*">
+                    <button id="upload-btn" class="bg-blue-500 text-white px-4 py-2 rounded-lg mb-2">
+                        Select Image
+                    </button>
+                    <p class="text-gray-500" id="file-name">No file selected</p>
+                </div>
+            </div>
+            <button id="process-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium disabled:opacity-50">
+                Remove Background
+            </button>
+        </div>
+
+        <!-- Preview Section -->
+        <div id="preview-section" class="hidden bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Preview</h2>
+            <div id="preview-container" class="checker-bg p-4 rounded-lg mb-4 flex justify-center">
+                <img id="preview-image" class="max-h-80">
+            </div>
+            
+            <div class="mb-4">
+                <h3 class="text-lg font-medium mb-2">Background Color</h3>
+                <div class="flex flex-wrap gap-3 mb-3">
+                    <button class="color-btn w-10 h-10 rounded-full border-2 border-gray-300" 
+                            data-color="transparent" title="Transparent"></button>
+                    <button class="color-btn w-10 h-10 rounded-full bg-white border" 
+                            data-color="#ffffff" title="White"></button>
+                    <button class="color-btn w-10 h-10 rounded-full bg-black" 
+                            data-color="#000000" title="Black"></button>
+                    <button class="color-btn w-10 h-10 rounded-full bg-red-500" 
+                            data-color="#ef4444" title="Red"></button>
+                    <button class="color-btn w-10 h-10 rounded-full bg-blue-500" 
+                            data-color="#3b82f6" title="Blue"></button>
+                    <input type="color" id="custom-color" class="w-10 h-10 cursor-pointer" value="#3b82f6">
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="apply-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">
+                    Apply Background
+                </button>
+                <button id="reset-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
+                    Start Over
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Section -->
+        <div id="result-section" class="hidden bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Your Result</h2>
+            <div id="result-container" class="checker-bg p-4 rounded-lg mb-6 flex justify-center">
+                <img id="result-image" class="max-h-80">
+            </div>
+            <div class="flex justify-center gap-3">
+                <a id="download-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg font-medium flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Download
+                </a>
+                <button id="new-btn" class="bg-gray-200 text-gray-800 px-6 py-2 rounded-lg">
+                    New Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        
+        // Event Listeners
+        document.getElementById('upload-btn').addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        document.getElementById('process-btn').addEventListener('click', processImage);
+        document.getElementById('apply-btn').addEventListener('click', applyBackground);
+        document.getElementById('download-btn').addEventListener('click', downloadImage);
+        document.getElementById('reset-btn').addEventListener('click', resetApp);
+        document.getElementById('new-btn').addEventListener('click', resetApp);
+        
+        // Color selection
+      // Update color selection to handle transparency properly
+document.querySelectorAll('.color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const color = btn.dataset.color;
+        document.getElementById('custom-color').value = color;
+        
+        // Special case for transparent
+        if (color === 'transparent') {
+            document.getElementById('custom-color').value = '#ffffff';
+        }
+    });
+});
+
+        // Global variables
+        let currentFile = null;
+        let processedImageUrl = null;
+        let finalImageUrl = null;
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            currentFile = file;
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('process-btn').disabled = false;
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                document.getElementById('preview-image').src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function processImage() {
+            if (!currentFile) return;
+            
+            const btn = document.getElementById('process-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-spin">⚙️</span> Processing...';
+            
+            const formData = new FormData();
+            formData.append('image', currentFile);
+            
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                processedImageUrl = data.processed_url;
+                document.getElementById('preview-image').src = processedImageUrl;
+                document.getElementById('upload-section').classList.add('hidden');
+                document.getElementById('preview-section').classList.remove('hidden');
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Remove Background';
+            }
+        }
+
+        async function applyBackground() {
+            const color = document.getElementById('custom-color').value;
+            const btn = document.getElementById('apply-btn');
+            btn.disabled = true;
+            btn.textContent = 'Applying...';
+            
+            try {
+                const response = await fetch('/add-bg', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        color: color === '#ffffff' ? 'transparent' : color
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                finalImageUrl = data.final_url;
+                document.getElementById('result-image').src = finalImageUrl;
+                document.getElementById('preview-section').classList.add('hidden');
+                document.getElementById('result-section').classList.remove('hidden');
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Apply Background';
+            }
+        }
+
+        function downloadImage(e) {
+    e.preventDefault();
+    
+    if (!finalImageUrl) {
+        alert('Please complete image processing first');
+        return;
+    }
+    
+    const isTransparent = document.getElementById('custom-color').value === '#ffffff';
+    const downloadUrl = isTransparent 
+        ? `/download?transparent=true` 
+        : finalImageUrl;
+    
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `background_removed_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+            
+            // The download will be handled by the browser automatically
+            // because we're using a direct link to the file
+        
+
+        function resetApp() {
+            currentFile = null;
+            processedImageUrl = null;
+            finalImageUrl = null;
+            
+            fileInput.value = '';
+            document.getElementById('file-name').textContent = 'No file selected';
+            document.getElementById('process-btn').disabled = true;
+            
+            document.getElementById('upload-section').classList.remove('hidden');
+            document.getElementById('preview-section').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
